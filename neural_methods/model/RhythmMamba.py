@@ -140,7 +140,7 @@ class Frequencydomain_FFN(nn.Module):
 
 
 class MambaLayer(nn.Module):
-    def __init__(self, dim, d_state=64, d_conv=4, expand=2):
+    def __init__(self, dim, d_state=48, d_conv=4, expand=2):
         super().__init__()
         self.dim = dim
         self.norm = nn.LayerNorm(dim)
@@ -189,29 +189,20 @@ class Block_mamba(nn.Module):
 
     def forward(self, x):
         B, D, C = x.size()
-        x_path = torch.zeros(x.size()).to("cuda:0")
-
-        x_o = self.drop_path(self.attn(x))
-
-        tt = D // 2
-        for j in range(D//tt):
-            x_div = self.attn(x[:,j * tt : (j + 1)* tt,:])
-            x_path[:,j * tt : (j + 1)* tt,:] = x_div
-        x_o = x_o + self.drop_path(x_path)
-
-        tt = D // 4
-        for j in range(D//tt):
-            x_div = self.attn(x[:,j * tt : (j + 1)* tt,:])
-            x_path[:,j * tt : (j + 1)* tt,:] = x_div
-        x_o = x_o + self.drop_path(x_path)
-
-        tt = D // 8
-        for j in range(D//tt):
-            x_div = self.attn(x[:,j * tt : (j + 1)* tt,:])
-            x_path[:,j * tt : (j + 1)* tt,:] = x_div
-        x_o = x_o + self.drop_path(x_path)
-
-        x = x + self.drop_path(self.norm1(x_o))
+        #Multi-temporal Parallelization
+        path = 3
+        segment = 2**(path-1)
+        tt = D // segment
+        x_r = x.repeat(segment,1,1)
+        x_o = x_r.clone()
+        for i in range(1,segment):
+            x_o[i*B:(i+1)*B,:D-i*tt,:] = x_r[i*B:(i+1)*B,i*tt:,:]
+        x_o = self.attn(x_o)
+        for i in range(1,segment):
+            for j in range(i):
+                x_o[0:B, tt*i: tt*(i+1) , :] = x_o[0:B, tt*i: tt*(i+1) , :] + x_o[B*(j+1):B*(j+2), tt*(i-j-1): tt*(i-j) , :]
+            x_o[0:B, tt*i: tt*(i+1) , :] = x_o[0:B, tt*i: tt*(i+1) , :] / (i+1)
+        x = x + self.drop_path(self.norm1(x_o[0:B]))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 

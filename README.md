@@ -5,7 +5,7 @@
 
 STEP1: `bash setup1.sh` 
 
-STEP2: `conda activate rppg-toolbox` 
+STEP2: `conda activate toolbox` 
 
 STEP3: `bash setup2.sh` 
 
