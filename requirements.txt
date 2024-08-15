@@ -11,7 +11,7 @@ PyYAML==6.0
 scikit_learn==1.0.2
 tensorboardX==2.4.1
 timm==0.9.16
-tqdm==4.64.0
+tqdm==4.66.3
 mat73==0.59
 ipykernel==6.26.0
 ipywidgets==8.1.1
