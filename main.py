@@ -132,7 +132,7 @@ if __name__ == "__main__":
         if config.TRAIN.DATA.DATASET == "COHFACE":
             # train_loader = data_loader.COHFACELoader.COHFACELoader
             raise ValueError("Unsupported dataset! Currently supporting UBFC, PURE, MMPD, and SCAMPS.")
-        elif config.TRAIN.DATA.DATASET == "UBFC-rPPG":
+        elif config.TRAIN.DATA.DATASET == "UBFC":
             train_loader = data_loader.UBFCrPPGLoader.UBFCrPPGLoader
         elif config.TRAIN.DATA.DATASET == "PURE":
             train_loader = data_loader.PURELoader.PURELoader
@@ -146,6 +146,8 @@ if __name__ == "__main__":
             train_loader = data_loader.BP4DPlusBigSmallLoader.BP4DPlusBigSmallLoader
         elif config.TRAIN.DATA.DATASET == "UBFC-PHYS":
             train_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
+        elif config.TRAIN.DATA.DATASET == "VIPL-HR":
+            train_loader = data_loader.VIPLHRLoader.VIPLHRLoader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), and UBFC-PHYS.")
@@ -173,7 +175,7 @@ if __name__ == "__main__":
         if config.VALID.DATA.DATASET == "COHFACE":
             # valid_loader = data_loader.COHFACELoader.COHFACELoader
             raise ValueError("Unsupported dataset! Currently supporting UBFC, PURE, MMPD, and SCAMPS.")
-        elif config.VALID.DATA.DATASET == "UBFC-rPPG":
+        elif config.VALID.DATA.DATASET == "UBFC":
             valid_loader = data_loader.UBFCrPPGLoader.UBFCrPPGLoader
         elif config.VALID.DATA.DATASET == "PURE":
             valid_loader = data_loader.PURELoader.PURELoader
@@ -187,6 +189,8 @@ if __name__ == "__main__":
             valid_loader = data_loader.BP4DPlusBigSmallLoader.BP4DPlusBigSmallLoader
         elif config.VALID.DATA.DATASET == "UBFC-PHYS":
             valid_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
+        elif config.VALID.DATA.DATASET == "VIPL-HR":
+            valid_loader = data_loader.VIPLHRLoader.VIPLHRLoader
         elif config.VALID.DATA.DATASET is None and not config.TEST.USE_LAST_EPOCH:
             raise ValueError("Validation dataset not specified despite USE_LAST_EPOCH set to False!")
         else:
@@ -216,7 +220,7 @@ if __name__ == "__main__":
         if config.TEST.DATA.DATASET == "COHFACE":
             # test_loader = data_loader.COHFACELoader.COHFACELoader
             raise ValueError("Unsupported dataset! Currently supporting UBFC, PURE, MMPD, and SCAMPS.")
-        elif config.TEST.DATA.DATASET == "UBFC-rPPG":
+        elif config.TEST.DATA.DATASET == "UBFC":
             test_loader = data_loader.UBFCrPPGLoader.UBFCrPPGLoader
         elif config.TEST.DATA.DATASET == "PURE":
             test_loader = data_loader.PURELoader.PURELoader
@@ -230,6 +234,8 @@ if __name__ == "__main__":
             test_loader = data_loader.BP4DPlusBigSmallLoader.BP4DPlusBigSmallLoader
         elif config.TEST.DATA.DATASET == "UBFC-PHYS":
             test_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
+        elif config.TEST.DATA.DATASET == "VIPL-HR":
+            test_loader = data_loader.VIPLHRLoader.VIPLHRLoader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                              SCAMPS, BP4D+ (Normal and BigSmall preprocessing), and UBFC-PHYS.")
@@ -246,7 +252,7 @@ if __name__ == "__main__":
                 config_data=config.TEST.DATA)
             data_loader_dict["test"] = DataLoader(
                 dataset=test_data,
-                num_workers=16,
+                num_workers=4,
                 batch_size=config.INFERENCE.BATCH_SIZE,
                 shuffle=False,
                 worker_init_fn=seed_worker,
@@ -260,7 +266,7 @@ if __name__ == "__main__":
         if config.UNSUPERVISED.DATA.DATASET == "COHFACE":
             # unsupervised_loader = data_loader.COHFACELoader.COHFACELoader
             raise ValueError("Unsupported dataset! Currently supporting UBFC, PURE, MMPD, and SCAMPS.")
-        elif config.UNSUPERVISED.DATA.DATASET == "UBFC-rPPG":
+        elif config.UNSUPERVISED.DATA.DATASET == "UBFC":
             unsupervised_loader = data_loader.UBFCrPPGLoader.UBFCrPPGLoader
         elif config.UNSUPERVISED.DATA.DATASET == "PURE":
             unsupervised_loader = data_loader.PURELoader.PURELoader
@@ -272,6 +278,8 @@ if __name__ == "__main__":
             unsupervised_loader = data_loader.BP4DPlusLoader.BP4DPlusLoader
         elif config.UNSUPERVISED.DATA.DATASET == "UBFC-PHYS":
             unsupervised_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
+        elif config.UNSUPERVISED.DATA.DATASET == "VIPL-HR":
+            unsupervised_loader = data_loader.VIPLHRLoader.VIPLHRLoader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                              SCAMPS, BP4D+, and UBFC-PHYS.")

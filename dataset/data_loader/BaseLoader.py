@@ -2,27 +2,24 @@
 
 Provides a pytorch-style data-loader for end-to-end training pipelines.
 Extend the class to support specific datasets.
-Dataset already supported: UBFC-rPPG, PURE, SCAMPS, BP4D+, and UBFC-PHYS.
+Dataset already supported: UBFC-rPPG, PURE, MMPD, VIPL-HR.
 
 """
-import csv
 import glob
 import os
-import re
 from math import ceil
 from scipy import signal
-from scipy import sparse
 from unsupervised_methods.methods import POS_WANG
 from unsupervised_methods import utils
 import math
 from multiprocessing import Pool, Process, Value, Array, Manager
-
 import cv2
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
 from tqdm import tqdm
-
+from scipy.interpolate import interp1d
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class BaseLoader(Dataset):
     """The base class for data loading based on pytorch Dataset.
@@ -50,6 +47,12 @@ class BaseLoader(Dataset):
         """
         self.inputs = list()
         self.labels = list()
+
+        self.incremental_train = 0
+        self.incremental_rate = 0.5
+        self.inputs_data = list()
+        self.labels_data = list()
+
         self.dataset_name = dataset_name
         self.raw_data_path = raw_data_path
         self.cached_path = config_data.CACHED_PATH
@@ -58,10 +61,10 @@ class BaseLoader(Dataset):
         self.data_format = config_data.DATA_FORMAT
         self.do_preprocess = config_data.DO_PREPROCESS
         self.config_data = config_data
+        # assert (config_data.BEGIN < config_data.END)
+        # assert (config_data.BEGIN > 0 or config_data.BEGIN == 0)
+        # assert (config_data.END < 1 or config_data.END == 1)
 
-        assert (config_data.BEGIN < config_data.END)
-        assert (config_data.BEGIN > 0 or config_data.BEGIN == 0)
-        assert (config_data.END < 1 or config_data.END == 1)
         if config_data.DO_PREPROCESS:
             self.raw_data_dirs = self.get_raw_data(self.raw_data_path)
             self.preprocess_dataset(self.raw_data_dirs, config_data.PREPROCESS, config_data.BEGIN, config_data.END)
@@ -86,8 +89,13 @@ class BaseLoader(Dataset):
 
     def __getitem__(self, index):
         """Returns a clip of video(3,T,W,H) and it's corresponding signals(T)."""
-        data = np.load(self.inputs[index])
-        label = np.load(self.labels[index])
+        if self.incremental_train == 1 and self.dataset_name == "train":
+            data = self.inputs_data[index]
+            label = self.labels_data[index]
+        else:
+            data = np.load(self.inputs[index], mmap_mode='r')
+            label = np.load(self.labels[index], mmap_mode='r')
+
         if self.data_format == 'NDCHW':
             data = np.transpose(data, (0, 3, 1, 2))
         elif self.data_format == 'NCDHW':
@@ -521,7 +529,6 @@ class BaseLoader(Dataset):
 
     def load_preprocessed_data(self):
         """ Loads the preprocessed data listed in the file list.
-
         Args:
             None
         Returns:
@@ -536,6 +543,18 @@ class BaseLoader(Dataset):
         labels = [input_file.replace("input", "label") for input_file in inputs]
         self.inputs = inputs
         self.labels = labels
+
+        if self.incremental_train == 1 and self.dataset_name == "train":
+            self.inputs = self.inputs[0:int(len(inputs)*self.incremental_rate)]
+            self.labels = self.labels[0:int(len(inputs)*self.incremental_rate)]
+            with ThreadPoolExecutor() as executor:
+                future_to_input = {executor.submit(np.load, path): path for path in self.inputs}
+                future_to_label = {executor.submit(np.load, path): path for path in self.labels}
+                for future in as_completed(future_to_input):
+                    self.inputs_data.append(future.result())
+                for future in as_completed(future_to_label):
+                    self.labels_data.append(future.result())
+
         self.preprocessed_data_len = len(inputs)
 
     @staticmethod
@@ -585,3 +604,16 @@ class BaseLoader(Dataset):
             np.linspace(
                 1, input_signal.shape[0], target_length), np.linspace(
                 1, input_signal.shape[0], input_signal.shape[0]), input_signal)
+
+    @staticmethod
+    def resample_video(input_frames, target_length):
+        T, H, W, _ = input_frames.shape
+        channel_data = input_frames.reshape(T, -1)
+            
+        f = interp1d(np.arange(T), channel_data, kind='cubic', axis=0)
+        resample_data = f(np.linspace(0, T-1, target_length, endpoint=False))
+            
+        resample_data = resample_data.reshape(target_length, H, W, 3)
+        resample_data = np.clip(resample_data, 0, 255).astype(np.uint8)
+        
+        return resample_data
