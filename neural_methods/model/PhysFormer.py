@@ -171,7 +171,7 @@ class ViT_ST_ST_Compact3_TDC_gra_sharp(nn.Module):
 
 
     def forward(self, x, gra_sharp=2.0):
-
+        # The standardization of the raw frames yields poor results; using frame differences as input instead.
         x = x.permute(0,2,1,3,4)
         x = x[:,:3,:,:,:]
         N, C, D, H, W = x.shape

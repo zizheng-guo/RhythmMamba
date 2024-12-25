@@ -130,8 +130,7 @@ if __name__ == "__main__":
         # neural method dataloader
         # train_loader
         if config.TRAIN.DATA.DATASET == "COHFACE":
-            # train_loader = data_loader.COHFACELoader.COHFACELoader
-            raise ValueError("Unsupported dataset! Currently supporting UBFC, PURE, MMPD, and SCAMPS.")
+            train_loader = data_loader.COHFACELoader.COHFACELoader
         elif config.TRAIN.DATA.DATASET == "UBFC":
             train_loader = data_loader.UBFCrPPGLoader.UBFCrPPGLoader
         elif config.TRAIN.DATA.DATASET == "PURE":
@@ -173,8 +172,7 @@ if __name__ == "__main__":
 
         # valid_loader
         if config.VALID.DATA.DATASET == "COHFACE":
-            # valid_loader = data_loader.COHFACELoader.COHFACELoader
-            raise ValueError("Unsupported dataset! Currently supporting UBFC, PURE, MMPD, and SCAMPS.")
+            valid_loader = data_loader.COHFACELoader.COHFACELoader
         elif config.VALID.DATA.DATASET == "UBFC":
             valid_loader = data_loader.UBFCrPPGLoader.UBFCrPPGLoader
         elif config.VALID.DATA.DATASET == "PURE":
@@ -218,8 +216,7 @@ if __name__ == "__main__":
     if config.TOOLBOX_MODE == "train_and_test" or config.TOOLBOX_MODE == "only_test":
         # test_loader
         if config.TEST.DATA.DATASET == "COHFACE":
-            # test_loader = data_loader.COHFACELoader.COHFACELoader
-            raise ValueError("Unsupported dataset! Currently supporting UBFC, PURE, MMPD, and SCAMPS.")
+            test_loader = data_loader.COHFACELoader.COHFACELoader
         elif config.TEST.DATA.DATASET == "UBFC":
             test_loader = data_loader.UBFCrPPGLoader.UBFCrPPGLoader
         elif config.TEST.DATA.DATASET == "PURE":
@@ -264,8 +261,7 @@ if __name__ == "__main__":
     elif config.TOOLBOX_MODE == "unsupervised_method":
         # unsupervised method dataloader
         if config.UNSUPERVISED.DATA.DATASET == "COHFACE":
-            # unsupervised_loader = data_loader.COHFACELoader.COHFACELoader
-            raise ValueError("Unsupported dataset! Currently supporting UBFC, PURE, MMPD, and SCAMPS.")
+            unsupervised_loader = data_loader.COHFACELoader.COHFACELoader
         elif config.UNSUPERVISED.DATA.DATASET == "UBFC":
             unsupervised_loader = data_loader.UBFCrPPGLoader.UBFCrPPGLoader
         elif config.UNSUPERVISED.DATA.DATASET == "PURE":

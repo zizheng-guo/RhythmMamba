@@ -157,6 +157,7 @@ class PhysNet_padding_Encoder_Decoder_MAX(nn.Module):
 
     def forward(self, x):
 
+        # The standardization of the raw frames yields poor results; using frame differences as input instead.
         x = x.permute(0,2,1,3,4)
         x = x[:,:3,:,:,:]
         

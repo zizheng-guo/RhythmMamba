@@ -8,11 +8,11 @@ RhythmMamba: Fast, Lightweight, and Accurate Remote Physiological Measurement [A
 
 ## :wrench: Setup
 
-STEP1: `bash setup1.sh` 
+STEP1: `bash setup.sh` 
 
-STEP2: `conda activate toolbox` 
+STEP2: `conda activate RhythmMamba` 
 
-STEP3: `bash setup2.sh` 
+STEP3: `pip install -r requirements.txt` 
 
 
 
@@ -49,11 +49,11 @@ STEP 4: Run `python main.py --config_file ./configs/train_configs/cross/PURE_UBF
 
 
 ## ✅ Todos
-- [ ] Computational Cost: Code
+- [ ] Computational Cost: Code + Documentation
 
-- [ ] Mamba-2: Update setup and support
+- [x] Mamba-2: Update setup and support
 
-- [ ] COHFACE: code + pretrained checkpoints
+- [x] COHFACE: code + pretrained checkpoints
 
 - [ ] VIPL-HR: code+ pretrained checkpoints
 
