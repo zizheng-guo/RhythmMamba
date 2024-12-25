@@ -61,7 +61,7 @@ class VIPLHRLoader(BaseLoader):
                         if os.path.exists(source_path):
                             subject_num = os.path.split(data_dir)[-1].replace('p', '')
                             index = f"p{subject_num}_v{data_v[1:]}_s{data_source[6:]}"
-                            subject = int(subject_num[0:2])
+                            subject = int(subject_num[0:])
                             dirs.append({"index": index, "path": source_path, "subject": subject})
         return dirs
     
