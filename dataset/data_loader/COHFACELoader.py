@@ -86,8 +86,8 @@ class COHFACELoader(BaseLoader):
         bvps = self.read_wave(os.path.join(data_dirs[i]["path"],"data.hdf5"))
         
         target_length = frames.shape[0]
-        target_length = frames.shape[0] // 2 * 3
-        frames = BaseLoader.resample_video(frames, target_length)
+        # target_length = frames.shape[0] // 2 * 3
+        # frames = BaseLoader.resample_video(frames, target_length)
         
         bvps = BaseLoader.resample_ppg(bvps, target_length)
         frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)

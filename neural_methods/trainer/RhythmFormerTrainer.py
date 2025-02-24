@@ -5,7 +5,7 @@ import torch
 import torch.optim as optim
 import random
 from tqdm import tqdm
-from evaluation.post_process import calculate_hr
+from evaluation.post_process import calculate_hr, read_fold
 from evaluation.metrics import calculate_metrics
 from neural_methods.model.RhythmFormer import RhythmFormer
 from neural_methods.trainer.BaseTrainer import BaseTrainer
@@ -26,10 +26,19 @@ class RhythmFormerTrainer(BaseTrainer):
         self.min_valid_loss = None
         self.best_epoch = 0
         self.diff_flag = 0
+        self.data_dict = {}
+        self.dataset = config.TRAIN.DATA.DATASET
+        self.fold = {}
+        if config.TRAIN.DATA.DATASET == "VIPL-HR":
+            self.fold = read_fold()
         if config.TRAIN.DATA.PREPROCESS.LABEL_TYPE == "DiffNormalized":
             self.diff_flag = 1
         if config.TOOLBOX_MODE == "train_and_test":
-            self.model = RhythmFormer().to(self.device)
+            if self.chunk_len!=160 or config.TRAIN.DATA.FS!=30:
+                topk = 4*(self.chunk_len//config.TRAIN.DATA.FS*2)
+                self.model = RhythmFormer(topks=(topk,topk,topk)).to(self.device)
+            else:
+                self.model = RhythmFormer().to(self.device)
             self.model = torch.nn.DataParallel(self.model, device_ids=list(range(config.NUM_OF_GPU_TRAIN)))
             self.num_train_batches = len(data_loader["train"])
             self.criterion = RhythmFormer_Loss()
@@ -39,16 +48,21 @@ class RhythmFormerTrainer(BaseTrainer):
             self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
                 self.optimizer, max_lr=config.TRAIN.LR, epochs=config.TRAIN.EPOCHS, steps_per_epoch=self.num_train_batches)
         elif config.TOOLBOX_MODE == "only_test":
-            self.model = RhythmFormer().to(self.device)
+            if self.chunk_len!=160 or config.TRAIN.DATA.FS!=30:
+                topk = 4*(self.chunk_len//config.TRAIN.DATA.FS*2)
+                self.model = RhythmFormer(topks=(topk,topk//2,topk//4)).to(self.device)
+            else:
+                self.model = RhythmFormer().to(self.device)
             self.model = torch.nn.DataParallel(self.model, device_ids=list(range(config.NUM_OF_GPU_TRAIN)))
         else:
             raise ValueError("EfficientPhys trainer initialized in incorrect toolbox mode!")
+    
 
     def train(self, data_loader):
         """Training routine for model"""
         if data_loader["train"] is None:
             raise ValueError("No data for train")
-
+        
         for epoch in range(self.max_epoch_num):
             print('')
             print(f"====Training Epoch: {epoch}====")
@@ -60,9 +74,11 @@ class RhythmFormerTrainer(BaseTrainer):
                 tbar.set_description("Train epoch %s" % epoch)
                 data, labels = batch[0].float(), batch[1].float()
                 N, D, C, H, W = data.shape
-
                 if self.config.TRAIN.AUG :
-                    data,labels = self.data_augmentation(data,labels)
+                    if self.dataset == "VIPL-HR":
+                        data,labels = self.vipl_data_augmentation(data,labels,batch[2],batch[3])
+                    else:
+                        data,labels = self.data_augmentation(data,labels,batch[2],batch[3])
 
                 data = data.to(self.device)
                 labels = labels.to(self.device)
@@ -180,35 +196,38 @@ class RhythmFormerTrainer(BaseTrainer):
         print('Saved Model Path: ', model_path)
 
 
-    def data_augmentation(self,data,labels):
+    def data_augmentation(self,data,labels,index1,index2):
         N, D, C, H, W = data.shape
         data_aug = np.zeros((N, D, C, H, W))
         labels_aug = np.zeros((N, D))
+        rand1_vals = np.random.random(N)
+        rand2_vals = np.random.random(N)
         for idx in range(N):
-            gt_hr_fft, _  = calculate_hr(labels[idx], labels[idx] , diff_flag = self.diff_flag , fs=self.config.VALID.DATA.FS)
-            rand1 = random.random()
-            rand2 = random.random()
-            rand3 = random.randint(0, D//2-1)
+            index = index1[idx] + index2[idx]
+            rand1 = rand1_vals[idx]
+            rand2 = rand2_vals[idx]
             if rand1 < 0.5 :
-                if gt_hr_fft > 90 :
-                    for tt in range(rand3,rand3+D):
-                        if tt%2 == 0:
-                            data_aug[idx,tt-rand3,:,:,:] = data[idx,tt//2,:,:,:]
-                            labels_aug[idx,tt-rand3] = labels[idx,tt//2]                    
-                        else:
-                            data_aug[idx,tt-rand3,:,:,:] = data[idx,tt//2,:,:,:]/2 + data[idx,tt//2+1,:,:,:]/2
-                            labels_aug[idx,tt-rand3] = labels[idx,tt//2]/2 + labels[idx,tt//2+1]/2
+                if index in self.data_dict:
+                    gt_hr_fft = self.data_dict[index]
+                else:
+                    gt_hr_fft, _  = calculate_hr(labels[idx], labels[idx] , diff_flag = self.diff_flag , fs=self.config.VALID.DATA.FS)
+                    self.data_dict[index] = gt_hr_fft
+                if gt_hr_fft > 90:
+                    rand3 = random.randint(0, D//2-1)
+                    even_indices = torch.arange(0, D, 2)
+                    odd_indices = even_indices + 1
+                    data_aug[:, even_indices, :, :, :] = data[:, rand3 + even_indices// 2, :, :, :]
+                    labels_aug[:, even_indices] = labels[:, rand3 + even_indices // 2]
+                    data_aug[:, odd_indices, :, :, :] = (data[:, rand3 + odd_indices // 2, :, :, :] + data[:, rand3 + (odd_indices // 2) + 1, :, :, :]) / 2
+                    labels_aug[:, odd_indices] = (labels[:, rand3 + odd_indices // 2] + labels[:, rand3 + (odd_indices // 2) + 1]) / 2
                 elif gt_hr_fft < 75 :
-                    for tt in range(D):
-                        if tt < D/2 :
-                            data_aug[idx,tt,:,:,:] = data[idx,tt*2,:,:,:]
-                            labels_aug[idx,tt] = labels[idx,tt*2] 
-                        else :                                    
-                            data_aug[idx,tt,:,:,:] = data_aug[idx,tt-D//2,:,:,:]
-                            labels_aug[idx,tt] = labels_aug[idx,tt-D//2] 
+                    data_aug[:, :D//2, :, :, :] = data[:, ::2, :, :, :]
+                    labels_aug[:, :D//2] = labels[:, ::2]
+                    data_aug[:, D//2:, :, :, :] = data_aug[:, :D//2, :, :, :]
+                    labels_aug[:, D//2:] = labels_aug[:, :D//2]
                 else :
                     data_aug[idx] = data[idx]
-                    labels_aug[idx] = labels[idx]                                          
+                    labels_aug[idx] = labels[idx]                                      
             else :
                 data_aug[idx] = data[idx]
                 labels_aug[idx] = labels[idx]
@@ -216,6 +235,47 @@ class RhythmFormerTrainer(BaseTrainer):
         labels_aug = torch.tensor(labels_aug).float()
         if rand2 < 0.5:
             data_aug = torch.flip(data_aug, dims=[4])
-        data = data_aug
-        labels = labels_aug
-        return data,labels
+        return data_aug, labels_aug
+    
+
+    # Nearly half of the frames in VIPL-HR have a frame rate lower than 20. For these already upsampled samples, no further upsampling is performed.
+    def vipl_data_augmentation(self,data,labels,index1,index2):
+        N, D, C, H, W = data.shape
+        data_aug = np.zeros((N, D, C, H, W))
+        labels_aug = np.zeros((N, D))
+        rand1_vals = np.random.random(N)
+        rand2_vals = np.random.random(N)
+        for idx in range(N):
+            index = index1[idx] + index2[idx]
+            rand1 = rand1_vals[idx]
+            rand2 = rand2_vals[idx]
+            if rand1 < 0.5 :
+                if index in self.data_dict:
+                    gt_hr_fft = self.data_dict[index]
+                else:
+                    gt_hr_fft, _  = calculate_hr(labels[idx], labels[idx] , diff_flag = self.diff_flag , fs=self.config.VALID.DATA.FS)
+                    self.data_dict[index] = gt_hr_fft
+                if gt_hr_fft > 90 and index1[idx] in self.fold:
+                    rand3 = random.randint(0, D//2-1)
+                    even_indices = torch.arange(0, D, 2)
+                    odd_indices = even_indices + 1
+                    data_aug[:, even_indices, :, :, :] = data[:, rand3 + even_indices// 2, :, :, :]
+                    labels_aug[:, even_indices] = labels[:, rand3 + even_indices // 2]
+                    data_aug[:, odd_indices, :, :, :] = (data[:, rand3 + odd_indices // 2, :, :, :] + data[:, rand3 + (odd_indices // 2) + 1, :, :, :]) / 2
+                    labels_aug[:, odd_indices] = (labels[:, rand3 + odd_indices // 2] + labels[:, rand3 + (odd_indices // 2) + 1]) / 2
+                elif gt_hr_fft < 70 :
+                    data_aug[:, :D//2, :, :, :] = data[:, ::2, :, :, :]
+                    labels_aug[:, :D//2] = labels[:, ::2]
+                    data_aug[:, D//2:, :, :, :] = data_aug[:, :D//2, :, :, :]
+                    labels_aug[:, D//2:] = labels_aug[:, :D//2]
+                else :
+                    data_aug[idx] = data[idx]
+                    labels_aug[idx] = labels[idx]                                      
+            else :
+                data_aug[idx] = data[idx]
+                labels_aug[idx] = labels[idx]
+        data_aug = torch.tensor(data_aug).float()
+        labels_aug = torch.tensor(labels_aug).float()
+        if rand2 < 0.5:
+            data_aug = torch.flip(data_aug, dims=[4])
+        return data_aug, labels_aug

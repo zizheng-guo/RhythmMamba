@@ -48,18 +48,6 @@ STEP 4: Run `python main.py --config_file ./configs/train_configs/cross/PURE_UBF
 
 
 
-## ✅ Todos
-- [ ] Computational Cost: Code + Documentation
-
-- [x] Mamba-2: Update setup and support
-
-- [x] COHFACE: code + pretrained checkpoints
-
-- [ ] VIPL-HR: code+ pretrained checkpoints
-
-  
-
-
 ## 🎓 Acknowledgement
 
 We would like to express sincere thanks to the authors of [rPPG-Toolbox, Liu *et al.*, 2023](https://proceedings.neurips.cc/paper_files/paper/2023/hash/d7d0d548a6317407e02230f15ce75817-Abstract-Datasets_and_Benchmarks.html), building upon which, we developed this repo. For detailed usage related instructions, please refer the GitHub repo of the [rPPG-Toolbox](https://github.com/ubicomplab/rPPG-Toolbox).

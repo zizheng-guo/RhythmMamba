@@ -26,6 +26,8 @@ class RhythmMambaTrainer(BaseTrainer):
         self.min_valid_loss = None
         self.best_epoch = 0
         self.diff_flag = 0
+        self.data_dict = {}
+        self.dataset = config.TRAIN.DATA.DATASET
         if config.TRAIN.DATA.PREPROCESS.LABEL_TYPE == "DiffNormalized":
             self.diff_flag = 1
         if config.TOOLBOX_MODE == "train_and_test":
@@ -62,7 +64,7 @@ class RhythmMambaTrainer(BaseTrainer):
                 N, D, C, H, W = data.shape
 
                 if self.config.TRAIN.AUG :
-                    data,labels = self.data_augmentation(data,labels)
+                    data,labels = self.data_augmentation(data,labels,batch[2],batch[3])
 
                 data = data.to(self.device)
                 labels = labels.to(self.device)
@@ -112,6 +114,7 @@ class RhythmMambaTrainer(BaseTrainer):
                 N, D, C, H, W = data_valid.shape
                 pred_ppg_valid = self.model(data_valid)
                 pred_ppg_valid = (pred_ppg_valid-torch.mean(pred_ppg_valid, axis=-1).view(-1, 1))/torch.std(pred_ppg_valid, axis=-1).view(-1, 1)    # normalize
+
                 for ib in range(N):
                     loss = self.criterion(pred_ppg_valid[ib], labels_valid[ib], self.config.TRAIN.EPOCHS , self.config.VALID.DATA.FS , self.diff_flag)
                     valid_loss.append(loss.item())
@@ -180,35 +183,39 @@ class RhythmMambaTrainer(BaseTrainer):
         print('Saved Model Path: ', model_path)
 
 
-    def data_augmentation(self,data,labels):
+    def data_augmentation(self,data,labels,index1,index2):
         N, D, C, H, W = data.shape
         data_aug = np.zeros((N, D, C, H, W))
         labels_aug = np.zeros((N, D))
+        rand1_vals = np.random.random(N)
+        rand2_vals = np.random.random(N)
         for idx in range(N):
-            gt_hr_fft, _  = calculate_hr(labels[idx], labels[idx] , diff_flag = self.diff_flag , fs=self.config.VALID.DATA.FS)
-            rand1 = random.random()
-            rand2 = random.random()
-            rand3 = random.randint(0, D//2-1)
+            index = index1[idx] + index2[idx]
+            rand1 = rand1_vals[idx]
+            rand2 = rand2_vals[idx]
             if rand1 < 0.5 :
-                if gt_hr_fft > 90 :
-                    for tt in range(rand3,rand3+D):
-                        if tt%2 == 0:
-                            data_aug[idx,tt-rand3,:,:,:] = data[idx,tt//2,:,:,:]
-                            labels_aug[idx,tt-rand3] = labels[idx,tt//2]                    
-                        else:
-                            data_aug[idx,tt-rand3,:,:,:] = data[idx,tt//2,:,:,:]/2 + data[idx,tt//2+1,:,:,:]/2
-                            labels_aug[idx,tt-rand3] = labels[idx,tt//2]/2 + labels[idx,tt//2+1]/2
+                if index in self.data_dict:
+                    gt_hr_fft = self.data_dict[index]
+                else:
+                    gt_hr_fft, _  = calculate_hr(labels[idx], labels[idx] , diff_flag = self.diff_flag , fs=self.config.VALID.DATA.FS)
+                    self.data_dict[index] = gt_hr_fft
+                    
+                if gt_hr_fft > 90: 
+                    rand3 = random.randint(0, D//2-1)
+                    even_indices = torch.arange(0, D, 2)
+                    odd_indices = even_indices + 1
+                    data_aug[:, even_indices, :, :, :] = data[:, rand3 + even_indices// 2, :, :, :]
+                    labels_aug[:, even_indices] = labels[:, rand3 + even_indices // 2]
+                    data_aug[:, odd_indices, :, :, :] = (data[:, rand3 + odd_indices // 2, :, :, :] + data[:, rand3 + (odd_indices // 2) + 1, :, :, :]) / 2
+                    labels_aug[:, odd_indices] = (labels[:, rand3 + odd_indices // 2] + labels[:, rand3 + (odd_indices // 2) + 1]) / 2
                 elif gt_hr_fft < 75 :
-                    for tt in range(D):
-                        if tt < D/2 :
-                            data_aug[idx,tt,:,:,:] = data[idx,tt*2,:,:,:]
-                            labels_aug[idx,tt] = labels[idx,tt*2] 
-                        else :                                    
-                            data_aug[idx,tt,:,:,:] = data_aug[idx,tt-D//2,:,:,:]
-                            labels_aug[idx,tt] = labels_aug[idx,tt-D//2] 
+                    data_aug[:, :D//2, :, :, :] = data[:, ::2, :, :, :]
+                    labels_aug[:, :D//2] = labels[:, ::2]
+                    data_aug[:, D//2:, :, :, :] = data_aug[:, :D//2, :, :, :]
+                    labels_aug[:, D//2:] = labels_aug[:, :D//2]
                 else :
                     data_aug[idx] = data[idx]
-                    labels_aug[idx] = labels[idx]                                          
+                    labels_aug[idx] = labels[idx]                                      
             else :
                 data_aug[idx] = data[idx]
                 labels_aug[idx] = labels[idx]
@@ -216,6 +223,4 @@ class RhythmMambaTrainer(BaseTrainer):
         labels_aug = torch.tensor(labels_aug).float()
         if rand2 < 0.5:
             data_aug = torch.flip(data_aug, dims=[4])
-        data = data_aug
-        labels = labels_aug
-        return data,labels
+        return data_aug, labels_aug
